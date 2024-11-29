@@ -1,0 +1,48 @@
+From c1027d16b076fe84b1eea60229169122e1190080 Mon Sep 17 00:00:00 2001
+From: loongson <loongson@loongson-pc>
+Date: Mon, 4 Dec 2023 18:08:25 +0800
+Subject: [PATCH] add loongarch64 support
+
+---
+ build.sh | 15 +++++++++++++++
+ 1 file changed, 15 insertions(+)
+ mode change 100644 => 100755 build.sh
+
+diff --git a/build.sh b/build.sh
+old mode 100644
+new mode 100755
+index c072572..4a7f215
+--- a/build.sh
++++ b/build.sh
+@@ -90,6 +90,18 @@ BuildDocker() {
+   go build -o ./bin/alist -ldflags="$ldflags" -tags=jsoniter .
+ }
+ 
++BuildLoongRelease() {
++	os_arch="linux-loong64"
++	cgo_cc="loongarch64-linux-gnu-gcc"
++	echo building for ${os_arch}
++	export GOOS=${os_arch%%-*}
++	export GOARCH=${os_arch##*-}
++	export CC=${cgo_cc}
++	export CGO_ENABLED=1
++	go build -o ./build/$appName-$os_arch -ldflags="$ldflags" -tags=jsoniter .
++	mv ./build/$appName-$os_arch ./build/alist-$version
++}
++
+ BuildRelease() {
+   rm -rf .git/
+   mkdir -p "build"
+@@ -206,6 +218,9 @@ elif [ "$1" = "release" ]; then
+     BuildRelease
+     MakeRelease "md5.txt"
+   fi
++elif [ "$1" = "loong64" ]; then
++	FetchWebRelease
++	BuildLoongRelease
+ else
+   echo -e "Parameter error"
+ fi
+-- 
+2.20.1
+

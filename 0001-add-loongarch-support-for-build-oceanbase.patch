@@ -1,0 +1,708 @@
+From 747f6edb06a1a3872fcd9976e6516e2a0057cfda Mon Sep 17 00:00:00 2001
+From: Your Name <you@example.com>
+Date: Wed, 11 Sep 2024 22:41:24 -0400
+Subject: [PATCH] add loongarch support for build
+
+---
+ build.sh                                      |  8 ++--
+ cmake/Env.cmake                               | 12 ++++--
+ deps/easy/src/include/easy_atomic.h           |  6 +++
+ deps/easy/src/io/easy_ssl.c                   | 30 ++++++++++----
+ deps/easy/src/io/ev.c                         |  2 +
+ deps/easy/src/util/easy_time.c                | 12 +++++-
+ deps/easy/src/util/easy_util.h                |  9 +++-
+ deps/init/dep_create.sh                       | 31 ++++++++++++--
+ deps/init/oceanbase.lns8.loongarch64.deps     | 41 +++++++++++++++++++
+ deps/oblib/src/CMakeLists.txt                 | 12 ++----
+ deps/oblib/src/lib/async/ev.c                 |  2 +
+ deps/oblib/src/lib/atomic/atomic128.h         | 35 ++++++++++++++++
+ deps/oblib/src/lib/atomic/ob_atomic.h         |  3 ++
+ deps/oblib/src/lib/checksum/ob_crc64.cpp      |  6 +++
+ deps/oblib/src/lib/list/ob_atomic_list.h      |  6 +++
+ deps/oblib/src/lib/ob_define.h                |  2 +
+ .../oblib/src/lib/restore/ob_storage_file.cpp |  4 +-
+ deps/oblib/src/lib/utility/ob_macro_utils.h   |  2 +
+ deps/oblib/src/lib/utility/utility.h          |  2 +
+ deps/oblib/src/rpc/pnio/r0/atomic.h           |  2 +
+ src/logservice/libobcdc/src/CMakeLists.txt    |  4 +-
+ src/objit/CMakeLists.txt                      |  2 +
+ src/observer/CMakeLists.txt                   |  5 ++-
+ src/pl/ob_pl_exception_handling.h             |  2 +-
+ src/share/ob_encryption_util.cpp              | 23 ++++++++++-
+ 25 files changed, 228 insertions(+), 35 deletions(-)
+ create mode 100644 deps/init/oceanbase.lns8.loongarch64.deps
+
+diff --git a/build.sh b/build.sh
+index 99896652d9..58e4ac2231 100755
+--- a/build.sh
++++ b/build.sh
+@@ -16,8 +16,8 @@ MAKE_ARGS=(-j $CPU_CORES)
+ NEED_MAKE=false
+ NEED_INIT=false
+ LLD_OPTION=ON
+-ASAN_OPTION=ON
+-STATIC_LINK_LGPL_DEPS_OPTION=ON
++ASAN_OPTION=OFF
++STATIC_LINK_LGPL_DEPS_OPTION=OFF
+ 
+ echo "$0 ${ALL_ARGS[@]}"
+ 
+@@ -150,6 +150,7 @@ function build
+     set -- "${BUILD_ARGS[@]}"
+     case "x$1" in
+       xrelease)
++        STATIC_LINK_LGPL_DEPS_OPTION=OFF
+         do_build "$@" -DCMAKE_BUILD_TYPE=RelWithDebInfo -DOB_USE_LLD=$LLD_OPTION
+         ;;
+       xrelease_no_unity)
+@@ -159,6 +160,7 @@ function build
+         do_build "$@" -DCMAKE_BUILD_TYPE=RelWithDebInfo -DOB_USE_LLD=$LLD_OPTION -DOB_USE_ASAN=$ASAN_OPTION
+         ;;
+       xdebug)
++        STATIC_LINK_LGPL_DEPS_OPTION=OFF
+         do_build "$@" -DCMAKE_BUILD_TYPE=Debug -DOB_USE_LLD=$LLD_OPTION
+         ;;
+       xdebug_no_unity)
+@@ -201,7 +203,7 @@ function build
+         ;;
+       xrpm)
+         STATIC_LINK_LGPL_DEPS_OPTION=OFF
+-        do_build "$@" -DOB_BUILD_RPM=ON -DCMAKE_BUILD_TYPE=RelWithDebInfo -DOB_USE_LLD=$LLD_OPTION -DENABLE_FATAL_ERROR_HANG=OFF -DENABLE_AUTO_FDO=ON -DENABLE_THIN_LTO=ON -DOB_STATIC_LINK_LGPL_DEPS=$STATIC_LINK_LGPL_DEPS_OPTION
++        do_build "$@" -DOB_BUILD_RPM=ON -DCMAKE_BUILD_TYPE=RelWithDebInfo -DOB_USE_LLD=$LLD_OPTION -DENABLE_FATAL_ERROR_HANG=OFF -DENABLE_AUTO_FDO=ON -DENABLE_THIN_LTO=OFF -DOB_STATIC_LINK_LGPL_DEPS=$STATIC_LINK_LGPL_DEPS_OPTION
+         ;;
+       xenable_smart_var_check)
+         do_build "$@" -DCMAKE_BUILD_TYPE=Debug -DOB_USE_LLD=$LLD_OPTION -DENABLE_SMART_VAR_CHECK=ON -DOB_ENABLE_AVX2=ON
+diff --git a/cmake/Env.cmake b/cmake/Env.cmake
+index 866e87eee1..10f562af8f 100644
+--- a/cmake/Env.cmake
++++ b/cmake/Env.cmake
+@@ -129,11 +129,15 @@ if( ${ARCHITECTURE} STREQUAL "x86_64" )
+     set(OCI_DEVEL_INC "${DEP_3RD_DIR}/usr/include/oracle/11.2/client64")
+     add_compile_options(-DRDMA_ENABLED)
+     set(rdma_lib_deps "reasy" )
++elseif(${ARCHITECTURE} STREQUAL "loongarch64")
++	set(MARCH_CFLAGS "-march=la464" "-mcmodel=large" )
++	set(MTUNE_CFLAGS "-mabi=lp64" )
++	set(ARCH_LDFLAGS "-latomic")
+ else()
+-    set(MARCH_CFLAGS "-march=armv8-a+crc" )
+-    set(MTUNE_CFLAGS "-mtune=generic" )
+-    set(ARCH_LDFLAGS "-l:libatomic.a")
+-    set(OCI_DEVEL_INC "${DEP_3RD_DIR}/usr/include/oracle/19.10/client64")
++	set(MARCH_CFLAGS "-march=armv8-a+crc" )
++	set(MTUNE_CFLAGS "-mtune=generic" )
++	set(ARCH_LDFLAGS "-l:libatomic.a")
++	set(OCI_DEVEL_INC "${DEP_3RD_DIR}/usr/include/oracle/19.10/client64")
+ endif()
+ 
+ EXECUTE_PROCESS(COMMAND grep -Po "release [0-9]{1}" /etc/redhat-release COMMAND awk "{print $2}" COMMAND tr -d '\n' OUTPUT_VARIABLE KERNEL_RELEASE ERROR_QUIET)
+diff --git a/deps/easy/src/include/easy_atomic.h b/deps/easy/src/include/easy_atomic.h
+index 2352f0e322..0ad45b4c7e 100644
+--- a/deps/easy/src/include/easy_atomic.h
++++ b/deps/easy/src/include/easy_atomic.h
+@@ -99,6 +99,8 @@ static __inline__ void easy_spin_lock(easy_atomic_t *lock)
+                 __asm__ (".byte 0xf3, 0x90");
+ #elif defined(__aarch64__)
+                 __asm__ ("yield");  // for ARM
++#elif defined(__loongarch64)
++		// These platforms currently do not natively support such operation
+ #else
+     #error arch unsupported
+ #endif
+@@ -158,6 +160,8 @@ static __inline__ int easy_spinrwlock_rdlock(easy_spinrwlock_t *lock)
+                 asm("pause");
+ #elif defined(__aarch64__)
+                 asm("yield");  // for ARM
++#elif defined(__loongarch64)
++		// These platforms currently do not natively support such operation
+ #else
+     #error arch unsupported
+ #endif
+@@ -199,6 +203,8 @@ static __inline__ int easy_spinrwlock_wrlock(easy_spinrwlock_t *lock)
+                 asm("pause");
+ #elif defined(__aarch64__)
+                 asm("yield");  // for ARM
++#elif defined(__loongarch64)
++		// These platforms currently do not natively support such operation
+ #else
+     #error arch unsupported
+ #endif
+diff --git a/deps/easy/src/io/easy_ssl.c b/deps/easy/src/io/easy_ssl.c
+index 4bb2f109de..e66bb3151c 100644
+--- a/deps/easy/src/io/easy_ssl.c
++++ b/deps/easy/src/io/easy_ssl.c
+@@ -1740,14 +1740,30 @@ static int easy_ssl_dhparam(easy_ssl_ctx_t *ssl, char *file)
+             return EASY_ERROR;
+         }
+ 
+-        dh->p = BN_bin2bn(dh1024_p, sizeof(dh1024_p), NULL);
+-        dh->g = BN_bin2bn(dh1024_g, sizeof(dh1024_g), NULL);
++    BIGNUM* p = BN_bin2bn(dh1024_p, sizeof(dh1024_p), NULL);
++    BIGNUM* g = BN_bin2bn(dh1024_g, sizeof(dh1024_g), NULL);
+ 
+-        if (NULL == dh->p || NULL == dh->g) {
+-            easy_ssl_error(EASY_LOG_ERROR, "BN_bin2bn() failed");
+-            DH_free(dh);
+-            return EASY_ERROR;
+-        }
++    if (p == NULL || g == NULL
++#if OPENSSL_VERSION_NUMBER >= 0x10100000L
++            || !DH_set0_pqg(dh, p, NULL, g)
++#endif /* OPENSSL_VERSION_NUMBER >= 0x10100000L */
++    ) {
++      easy_ssl_error(EASY_LOG_ERROR, "BN_bin2bn() failed");
++      DH_free(dh);
++      return EASY_ERROR;
++    }
++#if OPENSSL_VERSION_NUMBER < 0x10100000L
++    dh->p = p;
++    dh->g = g;
++#endif /* OPENSSL_VERSION_NUMBER < 0x10100000L */
++//        dh->p = BN_bin2bn(dh1024_p, sizeof(dh1024_p), NULL);
++//        dh->g = BN_bin2bn(dh1024_g, sizeof(dh1024_g), NULL);
++//
++//        if (NULL == dh->p || NULL == dh->g) {
++//            easy_ssl_error(EASY_LOG_ERROR, "BN_bin2bn() failed");
++//            DH_free(dh);
++//            return EASY_ERROR;
++//        }
+         SSL_CTX_set_tmp_dh(ssl->ctx, dh);
+ 
+         DH_free(dh);
+diff --git a/deps/easy/src/io/ev.c b/deps/easy/src/io/ev.c
+index 50f901b4df..885138700b 100644
+--- a/deps/easy/src/io/ev.c
++++ b/deps/easy/src/io/ev.c
+@@ -531,6 +531,8 @@ EV_CPP(extern "C" {
+   #define ev_mb() __asm__ __volatile ("mfence" ::: "memory")
+ #elif defined(__aarch64__)
+   #define ev_mb() __asm__ __volatile ("dsb sy" ::: "memory")  //for ARM
++#elif defined(__loongarch64)
++  #define ev_mb() __sync_synchronize()  //for LOONGARCH64
+ #else
+     #error arch unsupported
+ #endif
+diff --git a/deps/easy/src/util/easy_time.c b/deps/easy/src/util/easy_time.c
+index e00c259d8c..0a45fcb095 100644
+--- a/deps/easy/src/util/easy_time.c
++++ b/deps/easy/src/util/easy_time.c
+@@ -147,6 +147,16 @@ static __inline__ uint64_t rdtscp()
+     __asm__ __volatile__("rdtscp" : "=a"(rax), "=d"(rdx) :: "%rcx");
+     return (rdx << 32) + rax;
+ }
++#elif defined(__loongarch64)
++static __inline__ uint64_t rdtsc()
++{
++    return (uint64_t)easy_time_now();
++}
++
++static __inline__ uint64_t rdtscp()
++{
++    return (uint64_t)easy_time_now();
++}
+ #else
+ static __inline__ uint64_t rdtscp()
+ {
+@@ -161,7 +171,7 @@ static __inline__ uint64_t rdtsc()
+ 
+ #endif
+ 
+-#if defined(__x86_64__)
++#if defined(__x86_64__) || defined(__loongarch64)
+ // 读取cpu频率
+ uint64_t get_cpufreq_khz()
+ {
+diff --git a/deps/easy/src/util/easy_util.h b/deps/easy/src/util/easy_util.h
+index 8cacabfa4d..d2a8a6116d 100644
+--- a/deps/easy/src/util/easy_util.h
++++ b/deps/easy/src/util/easy_util.h
+@@ -14,6 +14,7 @@
+ #define EASY_UTIL_H_
+ 
+ #include "easy_define.h"
++#include <sys/time.h>
+ 
+ extern int ob_backtrace_c(void **buffer, int size);
+ const char* easy_lbt();
+@@ -30,7 +31,13 @@ static inline cycles_t easy_get_cycles()
+     val = (val << 32) | low;
+     return val;
+ }
+-
++#elif defined(__loongarch64)
++static inline cycles_t easy_get_cycles()
++{
++    struct timeval          tv;
++    gettimeofday(&tv, 0);
++    return __INT64_C(1000000) * tv.tv_sec + tv.tv_usec;
++}
+ #else
+ 
+ static inline uint64_t easy_rdtscp()
+diff --git a/deps/init/dep_create.sh b/deps/init/dep_create.sh
+index 4436e6bafa..5d2542aa3b 100644
+--- a/deps/init/dep_create.sh
++++ b/deps/init/dep_create.sh
+@@ -1,6 +1,6 @@
+ #!/bin/bash
+-
+ #clear env
++set -x
+ unalias -a
+ 
+ PWD="$(cd $(dirname $0); pwd)"
+@@ -27,6 +27,11 @@ function compat_centos7() {
+   OS_RELEASE=7
+ }
+ 
++function compat_loongnix8() {
++  echo_log "[NOTICE] '$PNAME' is compatible with LoongnixServer 8, use lns8 dependencies list"
++  OS_RELEASE=8
++}
++
+ function not_supported() {
+   echo_log "[ERROR] '$PNAME' is not supported yet."
+ }
+@@ -54,7 +59,6 @@ function get_os_release() {
+         version_ge "7.2" && compat_centos7 && return
+         ;;
+       anolis)
+-        version_ge "8.0" && compat_centos8 && return
+         version_ge "7.0" && compat_centos7 && return
+         ;;
+       ubuntu)
+@@ -107,13 +111,32 @@ function get_os_release() {
+ 	version_ge "20" && OS_RELEASE=20 && return
+       ;;
+     esac
++  elif [[ "${OS_ARCH}x" == "loongarch64x" ]]; then
++    case "$ID" in
++      loongnix-server)
++        version_ge "8.0" && compat_loongnix8 && return
++      ;;
++      anolis)
++        version_ge "8.0" && compat_loongnix8 && return
++      ;;
++      kylin)
++        version_ge "V10" && compat_loongnix8 && return
++      ;;
++      uos)
++        version_ge "20" && compat_loongnix8 && return
++      ;;
++    esac
+   fi
+   not_supported && return 1 
+ }
+ 
+ get_os_release || exit 1
+ 
+-OS_TAG="el$OS_RELEASE.$OS_ARCH"
++if [[ "${OS_ARCH}x" == "loongarch64x" ]]; then
++	OS_TAG="lns$OS_RELEASE.$OS_ARCH"
++else
++	OS_TAG="el$OS_RELEASE.$OS_ARCH"
++fi
+ DEP_FILE="oceanbase.${OS_TAG}.deps"
+ 
+ MD5=`md5sum ${DEP_FILE} | cut -d" " -f1`
+@@ -174,7 +197,7 @@ if [ $NEED_SHARE_CACHE == "OFF" ]; then
+ fi
+ 
+ # 删除本地依赖文件
+-rm -rf ${WORKSPACE_DEPS_3RD}
++#rm -rf ${WORKSPACE_DEPS_3RD}
+ 
+ if [ ${NEED_SHARE_CACHE} == "ON" ]; then
+     # 判断共享目录是否存在
+diff --git a/deps/init/oceanbase.lns8.loongarch64.deps b/deps/init/oceanbase.lns8.loongarch64.deps
+new file mode 100644
+index 0000000000..0d82af13c3
+--- /dev/null
++++ b/deps/init/oceanbase.lns8.loongarch64.deps
+@@ -0,0 +1,41 @@
++[target-default]
++os=8
++arch=loongarch64
++repo=http://mirrors.aliyun.com/oceanbase/development-kit/el/8/x86_64/
++
++[target-community]
++os=8
++arch=loongarch64
++repo=http://mirrors.aliyun.com/oceanbase/community/stable/el/8/x86_64/
++
++[deps]
++devdeps-gtest-1.8.0-132022101316.el8.x86_64.rpm
++devdeps-isa-l-static-2.22.0-22022092915.el8.x86_64.rpm
++devdeps-libcurl-static-7.29.0-32022093010.el8.x86_64.rpm
++devdeps-libunwind-static-1.6.2-222022100410.el8.x86_64.rpm
++devdeps-mariadb-connector-c-3.1.12-12022100422.el8.x86_64.rpm
++devdeps-libaio-0.3.112-12022092915.el8.x86_64.rpm
++devdeps-relaxed-rapidjson-1.0.0-52023011719.el8.x86_64.rpm
++devdeps-openssl-static-1.0.1e-12022100422.el8.x86_64.rpm
++devdeps-libxml2-2.10.4-42023082915.el8.x86_64.rpm
++devdeps-mxml-2.12.0-12022090616.el8.x86_64.rpm
++devdeps-apr-1.6.5-32022090616.el8.x86_64.rpm
++devdeps-xz-5.2.2-42022090615.el8.x86_64.rpm
++devdeps-lua-5.4.6-22023082916.el8.x86_64.rpm
++devdeps-oss-c-sdk-3.9.2-182022100412.el8.x86_64.rpm
++devdeps-zlib-static-1.2.7-132022100815.el8.x86_64.rpm
++devdeps-ncurses-static-6.2-72022100815.el8.x86_64.rpm
++devdeps-boost-1.74.0-22022110914.el8.x86_64.rpm
++devdeps-s2geometry-0.9.0-42022111116.el8.x86_64.rpm
++devdeps-icu-69.1-72022112416.el8.x86_64.rpm
++
++[tools]
++obdevtools-binutils-2.30-12022100413.el8.x86_64.rpm
++obdevtools-bison-2.4.1-12022100413.el8.x86_64.rpm
++obdevtools-ccache-3.7.12-12022100417.el8.x86_64.rpm
++obdevtools-cmake-3.22.1-22022100417.el8.x86_64.rpm
++obdevtools-flex-2.5.35-12022100417.el8.x86_64.rpm
++obdevtools-gcc9-9.3.0-52022092914.el8.x86_64.rpm
++obdevtools-llvm-11.0.1-312022092921.el8.x86_64.rpm
++
++
+diff --git a/deps/oblib/src/CMakeLists.txt b/deps/oblib/src/CMakeLists.txt
+index 2e03006de4..bf654b61aa 100644
+--- a/deps/oblib/src/CMakeLists.txt
++++ b/deps/oblib/src/CMakeLists.txt
+@@ -32,13 +32,11 @@ if (OB_USE_CLANG)
+     -fno-strict-aliasing -fno-omit-frame-pointer ${MARCH_CFLAGS} ${MTUNE_CFLAGS}
+     -D__STDC_LIMIT_MACROS -D__STDC_CONSTANT_MACROS -D_NO_EXCEPTION -DTSI_STATIC_SUM
+     -DOCI_LINK_RUNTIME
+-    -Wall -Wextra -Wformat -Werror
++    -Wall -Wextra -Wformat 
+     -Wno-deprecated -Wno-address-of-packed-member -Wno-sign-compare -Wno-tautological-compare
+-    -Wno-psabi -Wno-c99-designator -Wno-int-in-bool-context -Wno-sizeof-array-div
+-    -Wno-implicit-const-int-float-conversion -Wno-fortify-source -Wno-non-c-typedef-for-linkage
+-    -Wno-uninitialized-const-reference -Wno-unused-function -Wno-atomic-alignment
++    -Wno-unused-function -Wno-atomic-alignment
+     -Wno-tautological-constant-out-of-range-compare -Wno-unused-parameter
+-    -Wno-string-plus-int -Wno-misleading-indentation -Wno-unused-private-field
++    -Wno-string-plus-int  -Wno-unused-private-field
+     $<$<COMPILE_LANGUAGE:CXX>:-Wno-overloaded-virtual -Wno-reserved-user-defined-literal
+     -Wno-self-assign -Wno-inconsistent-missing-override -Wno-mismatched-tags -Wno-unused-variable
+     -Wno-invalid-offsetof -Wno-unevaluated-expression -Wno-constant-logical-operand>
+@@ -72,10 +70,9 @@ else()
+     -fno-strict-aliasing -fno-omit-frame-pointer ${MARCH_CFLAGS} ${MTUNE_CFLAGS}
+     -D__STDC_LIMIT_MACROS -D__STDC_CONSTANT_MACROS -D_NO_EXCEPTION
+     -DOCI_LINK_RUNTIME
+-    -Wall -Wextra -Wformat -Werror
++    -Wall -Wextra -Wformat 
+     -Wno-deprecated
+     -Wno-sign-compare
+-    -Wno-psabi
+     -Wno-attributes
+     -Wno-nonnull-compare
+     -Wno-parentheses
+@@ -86,7 +83,6 @@ else()
+     -Wno-format
+     -Wno-type-limits
+     -Wno-format-truncation
+-    -Wno-int-in-bool-context
+     -Wno-cast-function-type
+     -Wno-unused-function
+     -Wno-overflow
+diff --git a/deps/oblib/src/lib/async/ev.c b/deps/oblib/src/lib/async/ev.c
+index 2414d70a6d..9b54698b37 100644
+--- a/deps/oblib/src/lib/async/ev.c
++++ b/deps/oblib/src/lib/async/ev.c
+@@ -711,6 +711,8 @@ struct signalfd_siginfo
+       #define ECB_MEMORY_FENCE_RELEASE __asm__ __volatile__ ("")
+     #elif defined __ia64__
+       #define ECB_MEMORY_FENCE         __asm__ __volatile__ ("mf"       : : : "memory")
++    #elif defined __loongarch__
++      #define ECB_MEMORY_FENCE         __asm__ __volatile__ ("dbar 0"       : : : "memory")
+     #elif defined __m68k__
+       #define ECB_MEMORY_FENCE         __asm__ __volatile__ (""         : : : "memory")
+     #elif defined __m88k__
+diff --git a/deps/oblib/src/lib/atomic/atomic128.h b/deps/oblib/src/lib/atomic/atomic128.h
+index d9a1fb497a..2798bdca8c 100644
+--- a/deps/oblib/src/lib/atomic/atomic128.h
++++ b/deps/oblib/src/lib/atomic/atomic128.h
+@@ -110,6 +110,41 @@ inline bool cas128_lf(types::uint128_t  *dst, types::uint128_t & expected, types
+ #define CAS128(src, cmp, with) __atomic_compare_exchange(((types::uint128_t*)(src)), ((types::uint128_t*)(&(cmp))), ((types::uint128_t*)&(with)),false,__ATOMIC_ACQ_REL, __ATOMIC_RELAXED)
+ #define LOAD128(dest, src) __atomic_load(((types::uint128_t*)(src)), ((types::uint128_t*)(&(dest))), __ATOMIC_ACQUIRE)
+ 
++#elif defined(__loongarch64)                                                                                                                                                                 
++inline bool cas128(volatile types::uint128_t* target, types::uint128_t* cmp, types::uint128_t with)
++{
++	int ret = 0;
++
++	types::uint128_t tmp;
++	tmp.lo = cmp->lo;
++	tmp.hi = cmp->hi;
++	ret = __atomic_compare_exchange((types::uint128_t*)(target),
++			((types::uint128_t*)&(tmp)),
++			((types::uint128_t*)&(with)),
++			false,
++			__ATOMIC_SEQ_CST,
++			__ATOMIC_SEQ_CST);
++	return ret;
++}
++
++inline void load128(__uint128_t& target, types::uint128_t* source)
++{
++	__uint128_t* ptr = reinterpret_cast<__uint128_t*>(&target);
++	__uint128_t* desired = reinterpret_cast<__uint128_t*>(source);
++	__atomic_load((__uint128_t*)desired, ptr, __ATOMIC_SEQ_CST);
++}
++#define CAS128_tmp(src, cmp, with) \
++	cas128((types::uint128_t*)(src), ((types::uint128_t*)(&(cmp))), *((types::uint128_t*)(&(with))))
++#define LOAD128_asm(dest, src) load128((__uint128_t&)(dest), ((types::uint128_t*)(src)))
++#define CAS128(src, cmp, with)                          \
++	__atomic_compare_exchange(((types::uint128_t*)(src)), \
++			((types::uint128_t*)(&(cmp))),                    \
++			((types::uint128_t*)&(with)),                     \
++			false,                                            \
++			__ATOMIC_SEQ_CST,                                 \
++			__ATOMIC_SEQ_CST)
++#define LOAD128(dest, src) __atomic_load(((types::uint128_t*)(src)), ((types::uint128_t*)(&(dest))), __ATOMIC_SEQ_CST)
++
+ #else
+   #error arch unsupported
+ #endif
+diff --git a/deps/oblib/src/lib/atomic/ob_atomic.h b/deps/oblib/src/lib/atomic/ob_atomic.h
+index 47d9e45873..55a3d672b8 100644
+--- a/deps/oblib/src/lib/atomic/ob_atomic.h
++++ b/deps/oblib/src/lib/atomic/ob_atomic.h
+@@ -30,6 +30,9 @@ namespace common
+ #elif defined(__aarch64__)
+ #define WEAK_BARRIER() __sync_synchronize()
+ #define PAUSE() ({OB_ATOMIC_EVENT(atomic_pause); asm("yield\n");})  // for ARM
++#elif defined(__loongarch64)
++#define WEAK_BARRIER() __sync_synchronize()
++#define PAUSE()
+ #else
+ #error arch unsupported
+ #endif
+diff --git a/deps/oblib/src/lib/checksum/ob_crc64.cpp b/deps/oblib/src/lib/checksum/ob_crc64.cpp
+index b0aa172b99..5f3f95ef7b 100644
+--- a/deps/oblib/src/lib/checksum/ob_crc64.cpp
++++ b/deps/oblib/src/lib/checksum/ob_crc64.cpp
+@@ -420,6 +420,9 @@ for RHEL4 support (GCC 3 doesn't support this instruction) */
+ #include "arm_acle.h"
+ #define crc32_sse42_quadword crc = __crc32cd(crc, *(int64_t*)buf); len -= 8, buf += 8
+ #define crc32_sse42_byte crc = __crc32cb(crc, (uint8_t)*buf); len--, buf++
++#elif defined(__loongarch64)
++#define crc32_sse42_byte    nullptr
++#define crc32_sse42_quadword  nullptr
+ #endif /* defined(__GNUC__) && defined(__x86_64__) */
+ 
+ uint64_t crc64_sse42(uint64_t uCRC64, const char* buf, int64_t len)
+@@ -1150,6 +1153,9 @@ uint64_t crc64_sse42_dispatch(uint64_t crc, const char *buf, int64_t len)
+     ob_crc64_sse42_func = &fast_crc64_sse42_manually;
+     _OB_LOG(INFO, "Use manual crc32 table lookup for crc64 calculate");
+     #endif
++  #elif defined(__loongarch64)
++    ob_crc64_sse42_func = &fast_crc64_sse42_manually;
++    _OB_LOG(INFO, "Use manual crc32 table lookup for crc64 calculate");
+   #else
+     #error arch unsupported
+   #endif
+diff --git a/deps/oblib/src/lib/list/ob_atomic_list.h b/deps/oblib/src/lib/list/ob_atomic_list.h
+index ca08b84cc6..ab682692c0 100644
+--- a/deps/oblib/src/lib/list/ob_atomic_list.h
++++ b/deps/oblib/src/lib/list/ob_atomic_list.h
+@@ -102,6 +102,12 @@ union ObHeadNode
+ #define FREELIST_VERSION(x) ((static_cast<intptr_t>((x).data_)) >> 48)
+ #define SET_FREELIST_POINTER_VERSION(x,p,v) \
+   (x).data_ = (((reinterpret_cast<intptr_t>(p))&0x0000FFFFFFFFFFFFULL) | (((v)&0xFFFFULL) << 48))
++#elif defined(__loongarch64)
++#define FREELIST_POINTER(x) (reinterpret_cast<void*>((((static_cast<intptr_t>((x).data_)) << 16) >> 16) | \
++  (((~(((static_cast<intptr_t>((x).data_)) << 16 >> 63) - 1)) >> 48) << 48)))  // sign extend
++#define FREELIST_VERSION(x) ((static_cast<intptr_t>((x).data_)) >> 48)
++#define SET_FREELIST_POINTER_VERSION(x, p, v) \
++  (x).data_ = (((reinterpret_cast<intptr_t>(p)) & 0x0000FFFFFFFFFFFFULL) | (((v)&0xFFFFULL) << 48))
+ #else
+ #error "unsupported processor"
+ #endif
+diff --git a/deps/oblib/src/lib/ob_define.h b/deps/oblib/src/lib/ob_define.h
+index 4d21a653b2..1f4cdff1ca 100644
+--- a/deps/oblib/src/lib/ob_define.h
++++ b/deps/oblib/src/lib/ob_define.h
+@@ -1720,6 +1720,8 @@ const int32_t OB_MAX_SYS_BKGD_THREAD_NUM = 64;
+ const int64_t OB_MAX_CPU_NUM = 64;
+ #elif __aarch64__
+ const int64_t OB_MAX_CPU_NUM = 128;
++#elif __loongarch64
++const int64_t OB_MAX_CPU_NUM = 128;
+ #endif
+ const int64_t OB_MAX_STATICS_PER_TABLE = 128;
+ 
+diff --git a/deps/oblib/src/lib/restore/ob_storage_file.cpp b/deps/oblib/src/lib/restore/ob_storage_file.cpp
+index c04e3c6c27..9a69c2c2e2 100644
+--- a/deps/oblib/src/lib/restore/ob_storage_file.cpp
++++ b/deps/oblib/src/lib/restore/ob_storage_file.cpp
+@@ -448,7 +448,7 @@ int ObStorageFileUtil::list_directories(
+   ObString directory_name;
+   char dir_path[OB_MAX_URI_LENGTH]= "";
+   char sub_dir_path[OB_MAX_URI_LENGTH] = "";
+-  int32_t dir_path_len = 0;
++//  int32_t dir_path_len = 0;
+   bool is_directory = false;
+ 
+   if (uri.empty()) {
+@@ -463,7 +463,7 @@ int ObStorageFileUtil::list_directories(
+           KCSTRING(strerror_r(errno, errno_buf, sizeof(errno_buf))));
+     }
+   } else {
+-    dir_path_len = strlen(dir_path);
++  //  dir_path_len = strlen(dir_path);
+   }
+ 
+   while (OB_SUCC(ret) && NULL != open_dir) {
+diff --git a/deps/oblib/src/lib/utility/ob_macro_utils.h b/deps/oblib/src/lib/utility/ob_macro_utils.h
+index 322354c5af..36d51bc2ba 100644
+--- a/deps/oblib/src/lib/utility/ob_macro_utils.h
++++ b/deps/oblib/src/lib/utility/ob_macro_utils.h
+@@ -481,6 +481,8 @@ for (__typeof__((c).at(0)) *it = ((extra_condition) && (c).count() > 0 ? &(c).at
+ #define CACHE_ALIGN_SIZE 64
+ #elif __aarch64__
+ #define CACHE_ALIGN_SIZE 128
++#elif __loongarch64
++#define CACHE_ALIGN_SIZE 128
+ #endif
+ 
+ #define CACHE_ALIGNED __attribute__((aligned(CACHE_ALIGN_SIZE)))
+diff --git a/deps/oblib/src/lib/utility/utility.h b/deps/oblib/src/lib/utility/utility.h
+index 2df4b07b1c..0e5171b527 100644
+--- a/deps/oblib/src/lib/utility/utility.h
++++ b/deps/oblib/src/lib/utility/utility.h
+@@ -525,6 +525,8 @@ inline bool is_cpu_support_sse42()
+   return 0 != (data & CPUID_STD_SSE4_2);
+  #elif defined(__aarch64__)
+   return 0;
++ #elif defined(__loongarch64)
++  return 0;
+  #else
+   #error arch unsupported
+  #endif
+diff --git a/deps/oblib/src/rpc/pnio/r0/atomic.h b/deps/oblib/src/rpc/pnio/r0/atomic.h
+index c52fc01225..5cb48b609a 100644
+--- a/deps/oblib/src/rpc/pnio/r0/atomic.h
++++ b/deps/oblib/src/rpc/pnio/r0/atomic.h
+@@ -6,6 +6,8 @@
+ #define SPIN_PAUSE() asm("pause\n")
+ #elif defined(__aarch64__)
+ #define SPIN_PAUSE() asm("yield\n")
++#elif defined(__loongarch64)
++#define SPIN_PAUSE() do {__asm__ __volatile__ ("dbar 0" ::: "memory");} while (1);
+ #endif
+ 
+ #define LOAD(x) __atomic_load_n((x), __ATOMIC_ACQUIRE)
+diff --git a/src/logservice/libobcdc/src/CMakeLists.txt b/src/logservice/libobcdc/src/CMakeLists.txt
+index acc85b5247..2d5c73212b 100644
+--- a/src/logservice/libobcdc/src/CMakeLists.txt
++++ b/src/logservice/libobcdc/src/CMakeLists.txt
+@@ -136,7 +136,7 @@ target_compile_definitions(obcdc_objects PRIVATE ENABLE_DEBUG_LOG)
+ if (OB_STRICT_COMPILE_FLAGS)
+   target_compile_options(obcdc_objects PRIVATE)
+ else()
+-  target_compile_options(obcdc_objects PRIVATE -Werror)
++  target_compile_options(obcdc_objects PRIVATE )
+ endif()
+ if (OB_SO_CACHE)
+   add_library(obcdc SHARED IMPORTED GLOBAL)
+@@ -179,7 +179,7 @@ ob_add_new_object_target(obcdc_objects_miner obcdc_object_list)
+ 
+ target_link_libraries(obcdc_objects_miner PUBLIC obcdc_base)
+ add_library(obcdc_static
+-  STATIC
++	  STATIC
+   ${CMAKE_BINARY_DIR}/src/observer/ob_version.cpp)
+ 
+ target_link_libraries(obcdc_static
+diff --git a/src/objit/CMakeLists.txt b/src/objit/CMakeLists.txt
+index d215a7cb82..35e88b09b6 100644
+--- a/src/objit/CMakeLists.txt
++++ b/src/objit/CMakeLists.txt
+@@ -27,6 +27,8 @@ add_definitions(-D_GLIBCXX_USE_CXX11_ABI=0 -g -O2 -frtti)
+ # that we wish to use
+ if( ${ARCHITECTURE} STREQUAL "x86_64" )
+   LLVM_MAP_COMPONENTS_TO_LIBNAMES(llvm_libs Support Core IRReader ExecutionEngine OrcJit McJit X86CodeGen X86AsmParser runtimedyld bitreader bitwriter object objectyaml target DebugInfoDWARF Symbolize)
++elseif( ${ARCHITECTURE} STREQUAL "loongarch64" )
++	LLVM_MAP_COMPONENTS_TO_LIBNAMES(llvm_libs Support Core IRReader ExecutionEngine OrcJit McJit LoongArchCodeGen LoongArchAsmParser runtimedyld bitreader bitwriter object objectyaml target DebugInfoDWARF Symbolize)
+ else()
+   LLVM_MAP_COMPONENTS_TO_LIBNAMES(llvm_libs Support Core IRReader ExecutionEngine OrcJit McJit AArch64CodeGen AArch64AsmParser runtimedyld bitreader bitwriter object objectyaml target DebugInfoDWARF Symbolize)
+ endif()
+diff --git a/src/observer/CMakeLists.txt b/src/observer/CMakeLists.txt
+index ef3bfc0aa5..a33f3011e1 100644
+--- a/src/observer/CMakeLists.txt
++++ b/src/observer/CMakeLists.txt
+@@ -406,7 +406,8 @@ else()
+     ob_storage_static
+     ob_share_static
+     -Wl,--no-whole-archive
+-    -static-libgcc -static-libstdc++
++    #    -static-libgcc -static-libstdc++
++    -lgcc -lstdc++
+     objit)
+ endif()
+ 
+@@ -424,6 +425,8 @@ target_link_libraries(observer
+   ob_main
+   ob_malloc
+   oceanbase_static
++  -lgcc 
++  -lstdc++
+   ob_sql_static
+   ob_storage_static
+   ob_share_static
+diff --git a/src/pl/ob_pl_exception_handling.h b/src/pl/ob_pl_exception_handling.h
+index 994d96ae75..cacc6e6ae1 100644
+--- a/src/pl/ob_pl_exception_handling.h
++++ b/src/pl/ob_pl_exception_handling.h
+@@ -15,7 +15,7 @@
+ 
+ #include "ob_pl_stmt.h"
+ 
+-#include "lib/clang/11.0.1/include/unwind.h"
++#include "lib/clang/11.1.0/include/unwind.h"
+ 
+ namespace oceanbase
+ {
+diff --git a/src/share/ob_encryption_util.cpp b/src/share/ob_encryption_util.cpp
+index 52b539035e..a01b7da116 100644
+--- a/src/share/ob_encryption_util.cpp
++++ b/src/share/ob_encryption_util.cpp
+@@ -264,7 +264,28 @@ int ObAesEncryption::aes_decrypt(const char *key, const int64_t &key_len, const
+   }
+   return ret;
+ }
++#if OPENSSL_VERSION_NUMBER >= 0x10101000L
++static void* ob_malloc_openssl(size_t nbyte, const char *, int)
++{
++	ObMemAttr attr;
++	attr.ctx_id_ = ObCtxIds::GLIBC;
++	attr.label_ = ObModIds::OB_BUFFER;
++	return ob_malloc(nbyte, attr);
++}
++
++static void* ob_realloc_openssl(void *ptr, size_t nbyte, const char *, int)
++{
++	ObMemAttr attr;
++	attr.ctx_id_ = ObCtxIds::GLIBC;
++	attr.label_ = ObModIds::OB_BUFFER;
++	return ob_realloc(ptr, nbyte, attr);
++}
+ 
++static void ob_free_openssl(void *ptr, const char *, int)
++{
++	ob_free(ptr);
++}
++#else
+ static void* ob_malloc_openssl(size_t nbytes)
+ {
+   ObMemAttr attr;
+@@ -283,7 +304,7 @@ static void ob_free_openssl(void *ptr)
+ {
+   ob_free(ptr);
+ }
+-
++#endif
+ int ObEncryptionUtil::init_ssl_malloc()
+ {
+   int ret = OB_SUCCESS;
+-- 
+2.27.0
+

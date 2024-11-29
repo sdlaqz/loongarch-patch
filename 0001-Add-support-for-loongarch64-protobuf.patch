@@ -1,0 +1,378 @@
+From bd1166adf3dde92d8ffa64abe810a35b3c55ea8f Mon Sep 17 00:00:00 2001
+From: zhaixiaojuan <zhaixiaojuan@loongson.cn>
+Date: Thu, 23 Feb 2023 17:30:47 +0800
+Subject: [PATCH 1/2] Add support for loongarch64
+
+---
+ autogen.sh                                    |   5 +-
+ configure.ac                                  |   2 +-
+ src/Makefile.am                               |   1 +
+ src/google/protobuf/stubs/atomicops.h         |   2 +
+ .../atomicops_internals_loongarch64_gcc.h     | 286 ++++++++++++++++++
+ src/google/protobuf/stubs/platform_macros.h   |   3 +
+ 6 files changed, 296 insertions(+), 3 deletions(-)
+ create mode 100644 src/google/protobuf/stubs/atomicops_internals_loongarch64_gcc.h
+
+diff --git a/autogen.sh b/autogen.sh
+index c3e026d24..d22d73c27 100755
+--- a/autogen.sh
++++ b/autogen.sh
+@@ -19,8 +19,9 @@ fi
+ # directory is set up as an SVN external.
+ if test ! -e gtest; then
+   echo "Google Test not present.  Fetching gtest-1.5.0 from the web..."
+-  curl http://googletest.googlecode.com/files/gtest-1.5.0.tar.bz2 | tar jx
+-  mv gtest-1.5.0 gtest
++#  curl http://googletest.googlecode.com/files/gtest-1.5.0.tar.bz2 | tar jx
++  curl https://github.com/google/googletest/archive/release-1.5.0.tar.gz |tar jx
++  mv googletest-release-1.5.0 gtest
+ fi
+ 
+ set -ex
+diff --git a/configure.ac b/configure.ac
+index b2325290d..48ef60ad2 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -29,7 +29,7 @@ AS_IF([test "x${ac_cv_env_CXXFLAGS_set}" = "x"],
+ 
+ AC_CANONICAL_TARGET
+ 
+-AM_INIT_AUTOMAKE
++AM_INIT_AUTOMAKE([subdir-objects])
+ 
+ AC_ARG_WITH([zlib],
+   [AS_HELP_STRING([--with-zlib],
+diff --git a/src/Makefile.am b/src/Makefile.am
+index df733d9b8..48032576b 100644
+--- a/src/Makefile.am
++++ b/src/Makefile.am
+@@ -47,6 +47,7 @@ nobase_include_HEADERS =                                        \
+   google/protobuf/stubs/atomicops_internals_pnacl.h             \
+   google/protobuf/stubs/atomicops_internals_x86_gcc.h           \
+   google/protobuf/stubs/atomicops_internals_x86_msvc.h          \
++  google/protobuf/stubs/atomicops_internals_loongarch64_gcc.h   \
+   google/protobuf/stubs/common.h                                \
+   google/protobuf/stubs/platform_macros.h                       \
+   google/protobuf/stubs/once.h                                  \
+diff --git a/src/google/protobuf/stubs/atomicops.h b/src/google/protobuf/stubs/atomicops.h
+index b8581fa27..93d8542c3 100644
+--- a/src/google/protobuf/stubs/atomicops.h
++++ b/src/google/protobuf/stubs/atomicops.h
+@@ -184,6 +184,8 @@ GOOGLE_PROTOBUF_ATOMICOPS_ERROR
+ #include <google/protobuf/stubs/atomicops_internals_mips_gcc.h>
+ #elif defined(__pnacl__)
+ #include <google/protobuf/stubs/atomicops_internals_pnacl.h>
++#elif defined(GOOGLE_PROTOBUF_ARCH_LOONGARCH64)
++#include <google/protobuf/stubs/atomicops_internals_loongarch64_gcc.h>
+ #else
+ GOOGLE_PROTOBUF_ATOMICOPS_ERROR
+ #endif
+diff --git a/src/google/protobuf/stubs/atomicops_internals_loongarch64_gcc.h b/src/google/protobuf/stubs/atomicops_internals_loongarch64_gcc.h
+new file mode 100644
+index 000000000..4bbdf70ea
+--- /dev/null
++++ b/src/google/protobuf/stubs/atomicops_internals_loongarch64_gcc.h
+@@ -0,0 +1,286 @@
++// Protocol Buffers - Google's data interchange format
++// Copyright 2012 Google Inc.  All rights reserved.
++// http://code.google.com/p/protobuf/
++//
++// Redistribution and use in source and binary forms, with or without
++// modification, are permitted provided that the following conditions are
++// met:
++//
++//     * Redistributions of source code must retain the above copyright
++// notice, this list of conditions and the following disclaimer.
++//     * Redistributions in binary form must reproduce the above
++// copyright notice, this list of conditions and the following disclaimer
++// in the documentation and/or other materials provided with the
++// distribution.
++//     * Neither the name of Google Inc. nor the names of its
++// contributors may be used to endorse or promote products derived from
++// this software without specific prior written permission.
++//
++// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++// "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++// LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
++// A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
++// OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
++// SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
++// LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
++// DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
++// THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
++// (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
++// OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++
++// This file is an internal atomic implementation, use atomicops.h instead.
++
++#ifndef GOOGLE_PROTOBUF_ATOMICOPS_INTERNALS_LOONGARCH64_GCC_H_
++#define GOOGLE_PROTOBUF_ATOMICOPS_INTERNALS_LOONGARCH64_GCC_H_
++
++#define ATOMICOPS_COMPILER_BARRIER() __asm__ __volatile__("" : : : "memory")
++
++namespace google {
++namespace protobuf {
++namespace internal {
++
++// Atomically execute:
++//      result = *ptr;
++//      if (*ptr == old_value)
++//        *ptr = new_value;
++//      return result;
++//
++// I.e., replace "*ptr" with "new_value" if "*ptr" used to be "old_value".
++// Always return the old value of "*ptr"
++//
++// This routine implies no memory barriers.
++
++inline Atomic32 NoBarrier_CompareAndSwap(volatile Atomic32* ptr,
++                                         Atomic32 old_value,
++                                         Atomic32 new_value) {
++  Atomic32 prev, tmp;
++  __asm__ __volatile__("1:\n"
++                       "ll.w %0, %5\n"  // prev = *ptr
++                       "bne %0, %3, 2f\n"  // if (prev != old_value) goto 2
++                       "move %2, %4\n"  // tmp = new_value
++                       "sc.w %2, %1\n"  // *ptr = tmp (with atomic check)
++                       "beqz %2, 1b\n"  // start again on atomic error
++                       "2:\n"
++                       : "=&r" (prev), "=m" (*ptr), "=&r" (tmp)
++                       : "r" (old_value), "r" (new_value), "m" (*ptr)
++                       : "memory");
++  return prev;
++}
++
++// Atomically store new_value into *ptr, returning the previous value held in
++// *ptr.  This routine implies no memory barriers.
++inline Atomic32 NoBarrier_AtomicExchange(volatile Atomic32* ptr,
++                                         Atomic32 new_value) {
++  Atomic32 temp, old;
++  __asm__ __volatile__("1:\n"
++                       "ll.w %1, %2\n"  // old = *ptr
++                       "move %0, %3\n"  // temp = new_value
++                       "sc.w %0, %2\n"  // *ptr = temp (with atomic check)
++                       "beqz %0, 1b\n"  // start again on atomic error
++                       : "=&r" (temp), "=&r" (old), "=m" (*ptr)
++                       : "r" (new_value), "m" (*ptr)
++                       : "memory");
++
++  return old;
++}
++
++// Atomically increment *ptr by "increment".  Returns the new value of
++// *ptr with the increment applied.  This routine implies no memory barriers.
++inline Atomic32 NoBarrier_AtomicIncrement(volatile Atomic32* ptr,
++                                          Atomic32 increment) {
++  Atomic32 temp, temp2;
++
++  __asm__ __volatile__("1:\n"
++                       "ll.w %0, %2\n"  // temp = *ptr
++                       "add.w %1, %0, %3\n"  // temp2 = temp + increment
++                       "sc.w %1, %2\n"  // *ptr = temp2 (with atomic check)
++                       "beqz %1, 1b\n"  // start again on atomic error
++                       "add.w %1, %0, %3\n"  // temp2 = temp + increment
++                       : "=&r" (temp), "=&r" (temp2), "=m" (*ptr)
++                       : "r" (increment), "m" (*ptr)
++                       : "memory");
++  // temp2 now holds the final value.
++  return temp2;
++}
++
++inline Atomic32 Barrier_AtomicIncrement(volatile Atomic32* ptr,
++                                        Atomic32 increment) {
++  MemoryBarrier();
++  Atomic32 res = NoBarrier_AtomicIncrement(ptr, increment);
++  MemoryBarrier();
++  return res;
++}
++
++// "Acquire" operations
++// ensure that no later memory access can be reordered ahead of the operation.
++// "Release" operations ensure that no previous memory access can be reordered
++// after the operation.  "Barrier" operations have both "Acquire" and "Release"
++// semantics.   A MemoryBarrier() has "Barrier" semantics, but does no memory
++// access.
++inline Atomic32 Acquire_CompareAndSwap(volatile Atomic32* ptr,
++                                       Atomic32 old_value,
++                                       Atomic32 new_value) {
++  Atomic32 res = NoBarrier_CompareAndSwap(ptr, old_value, new_value);
++  MemoryBarrier();
++  return res;
++}
++
++inline Atomic32 Release_CompareAndSwap(volatile Atomic32* ptr,
++                                       Atomic32 old_value,
++                                       Atomic32 new_value) {
++  MemoryBarrier();
++  return NoBarrier_CompareAndSwap(ptr, old_value, new_value);
++}
++
++inline void NoBarrier_Store(volatile Atomic32* ptr, Atomic32 value) {
++  *ptr = value;
++}
++
++inline void Acquire_Store(volatile Atomic32* ptr, Atomic32 value) {
++  *ptr = value;
++  MemoryBarrier();
++}
++
++inline void Release_Store(volatile Atomic32* ptr, Atomic32 value) {
++  MemoryBarrier();
++  *ptr = value;
++}
++
++inline Atomic32 NoBarrier_Load(volatile const Atomic32* ptr) {
++  return *ptr;
++}
++
++inline Atomic32 Acquire_Load(volatile const Atomic32* ptr) {
++  Atomic32 value = *ptr;
++  MemoryBarrier();
++  return value;
++}
++
++inline Atomic32 Release_Load(volatile const Atomic32* ptr) {
++  MemoryBarrier();
++  return *ptr;
++}
++
++//64bit
++inline Atomic64 NoBarrier_CompareAndSwap(volatile Atomic64* ptr,
++                                         Atomic64 old_value,
++                                         Atomic64 new_value) {
++  Atomic64 prev, tmp;
++  __asm__ __volatile__("1:\n"
++                       "ll.w %0, %5\n"  // prev = *ptr
++                       "bne %0, %3, 2f\n"  // if (prev != old_value) goto 2
++                       "move %2, %4\n"  // tmp = new_value
++                       "sc.w %2, %1\n"  // *ptr = tmp (with atomic check)
++                       "beqz %2, 1b\n"  // start again on atomic error
++                       "2:\n"
++                       : "=&r" (prev), "=m" (*ptr), "=&r" (tmp)
++                       : "r" (old_value), "r" (new_value), "m" (*ptr)
++                       : "memory");
++  return prev;
++}
++
++// Atomically store new_value into *ptr, returning the previous value held in
++// *ptr.  This routine implies no memory barriers.
++inline Atomic64 NoBarrier_AtomicExchange(volatile Atomic64* ptr,
++                                         Atomic64 new_value) {
++  Atomic64 temp, old;
++  __asm__ __volatile__("1:\n"
++                       "ll.w %1, %2\n"  // old = *ptr
++                       "move %0, %3\n"  // temp = new_value
++                       "sc.w %0, %2\n"  // *ptr = temp (with atomic check)
++                       "beqz %0, 1b\n"  // start again on atomic error
++                       : "=&r" (temp), "=&r" (old), "=m" (*ptr)
++                       : "r" (new_value), "m" (*ptr)
++                       : "memory");
++
++  return old;
++}
++
++// Atomically increment *ptr by "increment".  Returns the new value of
++// *ptr with the increment applied.  This routine implies no memory barriers.
++inline Atomic64 NoBarrier_AtomicIncrement(volatile Atomic64* ptr,
++                                          Atomic64 increment) {
++  Atomic64 temp, temp2;
++
++  __asm__ __volatile__("1:\n"
++                       "ll.w %0, %2\n"  // temp = *ptr
++                       "add.w %1, %0, %3\n"  // temp2 = temp + increment
++                       "sc.w %1, %2\n"  // *ptr = temp2 (with atomic check)
++                       "beqz %1, 1b\n"  // start again on atomic error
++                       "add.w %1, %0, %3\n"  // temp2 = temp + increment
++                       : "=&r" (temp), "=&r" (temp2), "=m" (*ptr)
++                       : "r" (increment), "m" (*ptr)
++                       : "memory");
++  // temp2 now holds the final value.
++  return temp2;
++}
++
++inline Atomic64 Barrier_AtomicIncrement(volatile Atomic64* ptr,
++                                        Atomic64 increment) {
++  MemoryBarrier();
++  Atomic64 res = NoBarrier_AtomicIncrement(ptr, increment);
++  MemoryBarrier();
++  return res;
++}
++
++// "Acquire" operations
++// ensure that no later memory access can be reordered ahead of the operation.
++// "Release" operations ensure that no previous memory access can be reordered
++// after the operation.  "Barrier" operations have both "Acquire" and "Release"
++// semantics.   A MemoryBarrier() has "Barrier" semantics, but does no memory
++// access.
++inline Atomic64 Acquire_CompareAndSwap(volatile Atomic64* ptr,
++                                       Atomic64 old_value,
++                                       Atomic64 new_value) {
++  Atomic64 res = NoBarrier_CompareAndSwap(ptr, old_value, new_value);
++  MemoryBarrier();
++  return res;
++}
++
++inline Atomic64 Release_CompareAndSwap(volatile Atomic64* ptr,
++                                       Atomic64 old_value,
++                                       Atomic64 new_value) {
++  MemoryBarrier();
++  return NoBarrier_CompareAndSwap(ptr, old_value, new_value);
++}
++
++inline void NoBarrier_Store(volatile Atomic64* ptr, Atomic64 value) {
++  *ptr = value;
++}
++
++inline void MemoryBarrier() {
++  __asm__ __volatile__("dbar 0x0" : : : "memory");
++}
++
++inline void Acquire_Store(volatile Atomic64* ptr, Atomic64 value) {
++  *ptr = value;
++  MemoryBarrier();
++}
++
++inline void Release_Store(volatile Atomic64* ptr, Atomic64 value) {
++  MemoryBarrier();
++  *ptr = value;
++}
++
++inline Atomic64 NoBarrier_Load(volatile const Atomic64* ptr) {
++  return *ptr;
++}
++
++inline Atomic64 Acquire_Load(volatile const Atomic64* ptr) {
++  Atomic64 value = *ptr;
++  MemoryBarrier();
++  return value;
++}
++
++inline Atomic64 Release_Load(volatile const Atomic64* ptr) {
++  MemoryBarrier();
++  return *ptr;
++}
++
++}  // namespace internal
++}  // namespace protobuf
++}  // namespace google
++
++#undef ATOMICOPS_COMPILER_BARRIER
++
++#endif  // GOOGLE_PROTOBUF_ATOMICOPS_INTERNALS_LOONGARCH64_GCC_H_
+diff --git a/src/google/protobuf/stubs/platform_macros.h b/src/google/protobuf/stubs/platform_macros.h
+index b1df60e46..65472b455 100644
+--- a/src/google/protobuf/stubs/platform_macros.h
++++ b/src/google/protobuf/stubs/platform_macros.h
+@@ -57,6 +57,9 @@
+ #elif defined(__ppc__)
+ #define GOOGLE_PROTOBUF_ARCH_PPC 1
+ #define GOOGLE_PROTOBUF_ARCH_32_BIT 1
++#elif defined(_LOONGARCH_ARCH_LOONGARCH64)
++#define GOOGLE_PROTOBUF_ARCH_LOONGARCH64 1
++#define GOOGLE_PROTOBUF_ARCH_64_BIT 1
+ #else
+ #error Host architecture was not detected as supported by protobuf
+ #endif
+-- 
+2.20.1
+

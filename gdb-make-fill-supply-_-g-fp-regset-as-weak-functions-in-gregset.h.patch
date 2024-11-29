@@ -1,0 +1,77 @@
+From patchwork Thu Nov 11 09:21:00 2021
+Content-Type: text/plain; charset="utf-8"
+MIME-Version: 1.0
+Content-Transfer-Encoding: 7bit
+Subject: gdb: make {fill, supply}_{g,
+ fp}regset() as weak functions in gregset.h
+X-Patchwork-Submitter: Tiezhu Yang <yangtiezhu@loongson.cn>
+X-Patchwork-Id: 63336
+Message-Id: <1636622460-5811-1-git-send-email-yangtiezhu@loongson.cn>
+To: gdb-patches@sourceware.org
+Date: Thu, 11 Nov 2021 17:21:00 +0800
+From: Tiezhu Yang <yangtiezhu@loongson.cn>
+List-Id: Gdb-patches mailing list <gdb-patches.sourceware.org>
+
+I am working on the gdb support for LoongArch (a new RISC Architecture),
+when build with gdb/loongarch-tdep.c, there exists the following build
+error:
+
+      CXXLD  gdb
+    /usr/bin/ld: proc-service.o: in function `.LVL73':
+    proc-service.c:(.text+0x31c): undefined reference to `fill_gregset(regcache const*, unsigned long (*) [45], int)'
+    /usr/bin/ld: proc-service.o: in function `.LM151':
+    proc-service.c:(.text+0x35c): undefined reference to `supply_gregset(regcache*, unsigned long const (*) [45])'
+    /usr/bin/ld: proc-service.o: in function `.LVL89':
+    proc-service.c:(.text+0x3bc): undefined reference to `fill_fpregset(regcache const*, elf_fpreg_t (*) [34], int)'
+    /usr/bin/ld: proc-service.o: in function `.LM179':
+    proc-service.c:(.text+0x3fc): undefined reference to `supply_fpregset(regcache*, elf_fpreg_t const (*) [34])'
+    collect2: error: ld returned 1 exit status
+
+I notice that the above undefined references need to be defined in
+gdb/loongarch-linux-nat.c in the future work, but it is better to
+declare them as weak functions so that it can build successful now.
+
+Signed-off-by: Tiezhu Yang <yangtiezhu@loongson.cn>
+---
+ gdb/gregset.h | 10 ++++++----
+ 1 file changed, 6 insertions(+), 4 deletions(-)
+
+-- 
+2.1.0
+
+diff --git a/gdb/gregset.h b/gdb/gregset.h
+index 4b10692..42d752a 100644
+--- a/gdb/gregset.h
++++ b/gdb/gregset.h
+@@ -31,6 +31,8 @@
+ #define GDB_FPREGSET_T fpregset_t
+ #endif
+ 
++#define __weak __attribute__((weak))
++
+ typedef GDB_GREGSET_T gdb_gregset_t;
+ typedef GDB_FPREGSET_T gdb_fpregset_t;
+ 
+@@ -46,18 +48,18 @@ struct regcache;
+ /* Copy register values from the native target gregset/fpregset
+    into GDB's internal register cache.  */
+ 
+-extern void supply_gregset (struct regcache *regcache,
++__weak void supply_gregset (struct regcache *regcache,
+ 			    const gdb_gregset_t *gregs);
+-extern void supply_fpregset (struct regcache *regcache,
++__weak void supply_fpregset (struct regcache *regcache,
+ 			     const gdb_fpregset_t *fpregs);
+ 
+ /* Copy register values from GDB's register cache into
+    the native target gregset/fpregset.  If regno is -1, 
+    copy all the registers.  */
+ 
+-extern void fill_gregset (const struct regcache *regcache,
++__weak void fill_gregset (const struct regcache *regcache,
+ 			  gdb_gregset_t *gregs, int regno);
+-extern void fill_fpregset (const struct regcache *regcache,
++__weak void fill_fpregset (const struct regcache *regcache,
+ 			   gdb_fpregset_t *fpregs, int regno);
+ 
+ #endif
