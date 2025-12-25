@@ -1,0 +1,363 @@
+diff -urN mozjs.org/extract/js/src/jit/AtomicOperations.h mozjs/extract/js/src/jit/AtomicOperations.h
+--- mozjs.org/extract/js/src/jit/AtomicOperations.h	2025-12-17 15:30:33.576631069 +0800
++++ mozjs/extract/js/src/jit/AtomicOperations.h	2025-12-18 10:30:56.432304678 +0800
+@@ -382,7 +382,8 @@
+     defined(__ppc64__) || defined(__PPC64__) || defined(__ppc64le__) || \
+     defined(__PPC64LE__) || defined(__alpha__) || defined(__hppa__) ||  \
+     defined(__sh__) || defined(__s390__) || defined(__s390x__) ||       \
+-    defined(__m68k__) || defined(__riscv) || defined(__wasi__)
++    defined(__m68k__) || defined(__riscv) || defined(__wasi__) || \
++    defined(__loongarch64)
+ #  include "jit/shared/AtomicOperations-feeling-lucky.h"
+ #else
+ #  error "No AtomicOperations support provided for this platform"
+diff -urN mozjs.org/platform/loongarch64/linux/build/jit/Unified_cpp_js_src_jit12.cpp mozjs/platform/loongarch64/linux/build/jit/Unified_cpp_js_src_jit12.cpp
+--- mozjs.org/platform/loongarch64/linux/build/jit/Unified_cpp_js_src_jit12.cpp	2025-12-17 15:30:33.560631503 +0800
++++ mozjs/platform/loongarch64/linux/build/jit/Unified_cpp_js_src_jit12.cpp	2025-12-18 10:02:53.723626550 +0800
+@@ -17,39 +17,39 @@
+ #error "jit/XrayJitInfo.cpp defines INITGUID, so it cannot be built in unified mode."
+ #undef INITGUID
+ #endif
+-#include "jit/arm64/Architecture-arm64.cpp"
++#include "jit/none/Trampoline-none.cpp"
+ #ifdef PL_ARENA_CONST_ALIGN_MASK
+-#error "jit/arm64/Architecture-arm64.cpp uses PL_ARENA_CONST_ALIGN_MASK, so it cannot be built in unified mode."
++#error "jit/none/Trampoline-none.cpp uses PL_ARENA_CONST_ALIGN_MASK, so it cannot be built in unified mode."
+ #undef PL_ARENA_CONST_ALIGN_MASK
+ #endif
+ #ifdef INITGUID
+-#error "jit/arm64/Architecture-arm64.cpp defines INITGUID, so it cannot be built in unified mode."
++#error "jit/none/Trampoline-none.cpp defines INITGUID, so it cannot be built in unified mode."
+ #undef INITGUID
+ #endif
+-#include "jit/arm64/Assembler-arm64.cpp"
++#include "jit/shared/CodeGenerator-shared.cpp"
+ #ifdef PL_ARENA_CONST_ALIGN_MASK
+-#error "jit/arm64/Assembler-arm64.cpp uses PL_ARENA_CONST_ALIGN_MASK, so it cannot be built in unified mode."
++#error "jit/shared/CodeGenerator-shared.cpp uses PL_ARENA_CONST_ALIGN_MASK, so it cannot be built in unified mode."
+ #undef PL_ARENA_CONST_ALIGN_MASK
+ #endif
+ #ifdef INITGUID
+-#error "jit/arm64/Assembler-arm64.cpp defines INITGUID, so it cannot be built in unified mode."
++#error "jit/shared/CodeGenerator-shared.cpp defines INITGUID, so it cannot be built in unified mode."
+ #undef INITGUID
+ #endif
+-#include "jit/arm64/Bailouts-arm64.cpp"
++#include "jit/shared/Disassembler-shared.cpp"
+ #ifdef PL_ARENA_CONST_ALIGN_MASK
+-#error "jit/arm64/Bailouts-arm64.cpp uses PL_ARENA_CONST_ALIGN_MASK, so it cannot be built in unified mode."
++#error "jit/shared/Disassembler-shared.cpp uses PL_ARENA_CONST_ALIGN_MASK, so it cannot be built in unified mode."
+ #undef PL_ARENA_CONST_ALIGN_MASK
+ #endif
+ #ifdef INITGUID
+-#error "jit/arm64/Bailouts-arm64.cpp defines INITGUID, so it cannot be built in unified mode."
++#error "jit/shared/Disassembler-shared.cpp defines INITGUID, so it cannot be built in unified mode."
+ #undef INITGUID
+ #endif
+-#include "jit/arm64/CodeGenerator-arm64.cpp"
++#include "jit/shared/Lowering-shared.cpp"
+ #ifdef PL_ARENA_CONST_ALIGN_MASK
+-#error "jit/arm64/CodeGenerator-arm64.cpp uses PL_ARENA_CONST_ALIGN_MASK, so it cannot be built in unified mode."
++#error "jit/shared/Lowering-shared.cpp uses PL_ARENA_CONST_ALIGN_MASK, so it cannot be built in unified mode."
+ #undef PL_ARENA_CONST_ALIGN_MASK
+ #endif
+ #ifdef INITGUID
+-#error "jit/arm64/CodeGenerator-arm64.cpp defines INITGUID, so it cannot be built in unified mode."
++#error "jit/shared/Lowering-shared.cpp defines INITGUID, so it cannot be built in unified mode."
+ #undef INITGUID
+ #endif
+\ 文件末尾没有换行符
+diff -urN mozjs.org/platform/loongarch64/linux/build/jit/Unified_cpp_js_src_jit13.cpp mozjs/platform/loongarch64/linux/build/jit/Unified_cpp_js_src_jit13.cpp
+--- mozjs.org/platform/loongarch64/linux/build/jit/Unified_cpp_js_src_jit13.cpp	2025-12-17 15:30:33.560631503 +0800
++++ mozjs/platform/loongarch64/linux/build/jit/Unified_cpp_js_src_jit13.cpp	1970-01-01 08:00:00.000000000 +0800
+@@ -1,55 +0,0 @@
+-#define MOZ_UNIFIED_BUILD
+-#include "jit/arm64/Lowering-arm64.cpp"
+-#ifdef PL_ARENA_CONST_ALIGN_MASK
+-#error "jit/arm64/Lowering-arm64.cpp uses PL_ARENA_CONST_ALIGN_MASK, so it cannot be built in unified mode."
+-#undef PL_ARENA_CONST_ALIGN_MASK
+-#endif
+-#ifdef INITGUID
+-#error "jit/arm64/Lowering-arm64.cpp defines INITGUID, so it cannot be built in unified mode."
+-#undef INITGUID
+-#endif
+-#include "jit/arm64/MacroAssembler-arm64.cpp"
+-#ifdef PL_ARENA_CONST_ALIGN_MASK
+-#error "jit/arm64/MacroAssembler-arm64.cpp uses PL_ARENA_CONST_ALIGN_MASK, so it cannot be built in unified mode."
+-#undef PL_ARENA_CONST_ALIGN_MASK
+-#endif
+-#ifdef INITGUID
+-#error "jit/arm64/MacroAssembler-arm64.cpp defines INITGUID, so it cannot be built in unified mode."
+-#undef INITGUID
+-#endif
+-#include "jit/arm64/MoveEmitter-arm64.cpp"
+-#ifdef PL_ARENA_CONST_ALIGN_MASK
+-#error "jit/arm64/MoveEmitter-arm64.cpp uses PL_ARENA_CONST_ALIGN_MASK, so it cannot be built in unified mode."
+-#undef PL_ARENA_CONST_ALIGN_MASK
+-#endif
+-#ifdef INITGUID
+-#error "jit/arm64/MoveEmitter-arm64.cpp defines INITGUID, so it cannot be built in unified mode."
+-#undef INITGUID
+-#endif
+-#include "jit/arm64/Trampoline-arm64.cpp"
+-#ifdef PL_ARENA_CONST_ALIGN_MASK
+-#error "jit/arm64/Trampoline-arm64.cpp uses PL_ARENA_CONST_ALIGN_MASK, so it cannot be built in unified mode."
+-#undef PL_ARENA_CONST_ALIGN_MASK
+-#endif
+-#ifdef INITGUID
+-#error "jit/arm64/Trampoline-arm64.cpp defines INITGUID, so it cannot be built in unified mode."
+-#undef INITGUID
+-#endif
+-#include "jit/arm64/vixl/Assembler-vixl.cpp"
+-#ifdef PL_ARENA_CONST_ALIGN_MASK
+-#error "jit/arm64/vixl/Assembler-vixl.cpp uses PL_ARENA_CONST_ALIGN_MASK, so it cannot be built in unified mode."
+-#undef PL_ARENA_CONST_ALIGN_MASK
+-#endif
+-#ifdef INITGUID
+-#error "jit/arm64/vixl/Assembler-vixl.cpp defines INITGUID, so it cannot be built in unified mode."
+-#undef INITGUID
+-#endif
+-#include "jit/arm64/vixl/Cpu-Features-vixl.cpp"
+-#ifdef PL_ARENA_CONST_ALIGN_MASK
+-#error "jit/arm64/vixl/Cpu-Features-vixl.cpp uses PL_ARENA_CONST_ALIGN_MASK, so it cannot be built in unified mode."
+-#undef PL_ARENA_CONST_ALIGN_MASK
+-#endif
+-#ifdef INITGUID
+-#error "jit/arm64/vixl/Cpu-Features-vixl.cpp defines INITGUID, so it cannot be built in unified mode."
+-#undef INITGUID
+-#endif
+\ 文件末尾没有换行符
+diff -urN mozjs.org/platform/loongarch64/linux/build/jit/Unified_cpp_js_src_jit14.cpp mozjs/platform/loongarch64/linux/build/jit/Unified_cpp_js_src_jit14.cpp
+--- mozjs.org/platform/loongarch64/linux/build/jit/Unified_cpp_js_src_jit14.cpp	2025-12-17 15:30:33.560631503 +0800
++++ mozjs/platform/loongarch64/linux/build/jit/Unified_cpp_js_src_jit14.cpp	1970-01-01 08:00:00.000000000 +0800
+@@ -1,55 +0,0 @@
+-#define MOZ_UNIFIED_BUILD
+-#include "jit/arm64/vixl/Cpu-vixl.cpp"
+-#ifdef PL_ARENA_CONST_ALIGN_MASK
+-#error "jit/arm64/vixl/Cpu-vixl.cpp uses PL_ARENA_CONST_ALIGN_MASK, so it cannot be built in unified mode."
+-#undef PL_ARENA_CONST_ALIGN_MASK
+-#endif
+-#ifdef INITGUID
+-#error "jit/arm64/vixl/Cpu-vixl.cpp defines INITGUID, so it cannot be built in unified mode."
+-#undef INITGUID
+-#endif
+-#include "jit/arm64/vixl/Decoder-vixl.cpp"
+-#ifdef PL_ARENA_CONST_ALIGN_MASK
+-#error "jit/arm64/vixl/Decoder-vixl.cpp uses PL_ARENA_CONST_ALIGN_MASK, so it cannot be built in unified mode."
+-#undef PL_ARENA_CONST_ALIGN_MASK
+-#endif
+-#ifdef INITGUID
+-#error "jit/arm64/vixl/Decoder-vixl.cpp defines INITGUID, so it cannot be built in unified mode."
+-#undef INITGUID
+-#endif
+-#include "jit/arm64/vixl/Instructions-vixl.cpp"
+-#ifdef PL_ARENA_CONST_ALIGN_MASK
+-#error "jit/arm64/vixl/Instructions-vixl.cpp uses PL_ARENA_CONST_ALIGN_MASK, so it cannot be built in unified mode."
+-#undef PL_ARENA_CONST_ALIGN_MASK
+-#endif
+-#ifdef INITGUID
+-#error "jit/arm64/vixl/Instructions-vixl.cpp defines INITGUID, so it cannot be built in unified mode."
+-#undef INITGUID
+-#endif
+-#include "jit/arm64/vixl/MacroAssembler-vixl.cpp"
+-#ifdef PL_ARENA_CONST_ALIGN_MASK
+-#error "jit/arm64/vixl/MacroAssembler-vixl.cpp uses PL_ARENA_CONST_ALIGN_MASK, so it cannot be built in unified mode."
+-#undef PL_ARENA_CONST_ALIGN_MASK
+-#endif
+-#ifdef INITGUID
+-#error "jit/arm64/vixl/MacroAssembler-vixl.cpp defines INITGUID, so it cannot be built in unified mode."
+-#undef INITGUID
+-#endif
+-#include "jit/arm64/vixl/MozAssembler-vixl.cpp"
+-#ifdef PL_ARENA_CONST_ALIGN_MASK
+-#error "jit/arm64/vixl/MozAssembler-vixl.cpp uses PL_ARENA_CONST_ALIGN_MASK, so it cannot be built in unified mode."
+-#undef PL_ARENA_CONST_ALIGN_MASK
+-#endif
+-#ifdef INITGUID
+-#error "jit/arm64/vixl/MozAssembler-vixl.cpp defines INITGUID, so it cannot be built in unified mode."
+-#undef INITGUID
+-#endif
+-#include "jit/arm64/vixl/MozCpu-vixl.cpp"
+-#ifdef PL_ARENA_CONST_ALIGN_MASK
+-#error "jit/arm64/vixl/MozCpu-vixl.cpp uses PL_ARENA_CONST_ALIGN_MASK, so it cannot be built in unified mode."
+-#undef PL_ARENA_CONST_ALIGN_MASK
+-#endif
+-#ifdef INITGUID
+-#error "jit/arm64/vixl/MozCpu-vixl.cpp defines INITGUID, so it cannot be built in unified mode."
+-#undef INITGUID
+-#endif
+\ 文件末尾没有换行符
+diff -urN mozjs.org/platform/loongarch64/linux/build/jit/Unified_cpp_js_src_jit15.cpp mozjs/platform/loongarch64/linux/build/jit/Unified_cpp_js_src_jit15.cpp
+--- mozjs.org/platform/loongarch64/linux/build/jit/Unified_cpp_js_src_jit15.cpp	2025-12-17 15:30:33.560631503 +0800
++++ mozjs/platform/loongarch64/linux/build/jit/Unified_cpp_js_src_jit15.cpp	1970-01-01 08:00:00.000000000 +0800
+@@ -1,55 +0,0 @@
+-#define MOZ_UNIFIED_BUILD
+-#include "jit/arm64/vixl/MozInstructions-vixl.cpp"
+-#ifdef PL_ARENA_CONST_ALIGN_MASK
+-#error "jit/arm64/vixl/MozInstructions-vixl.cpp uses PL_ARENA_CONST_ALIGN_MASK, so it cannot be built in unified mode."
+-#undef PL_ARENA_CONST_ALIGN_MASK
+-#endif
+-#ifdef INITGUID
+-#error "jit/arm64/vixl/MozInstructions-vixl.cpp defines INITGUID, so it cannot be built in unified mode."
+-#undef INITGUID
+-#endif
+-#include "jit/arm64/vixl/Utils-vixl.cpp"
+-#ifdef PL_ARENA_CONST_ALIGN_MASK
+-#error "jit/arm64/vixl/Utils-vixl.cpp uses PL_ARENA_CONST_ALIGN_MASK, so it cannot be built in unified mode."
+-#undef PL_ARENA_CONST_ALIGN_MASK
+-#endif
+-#ifdef INITGUID
+-#error "jit/arm64/vixl/Utils-vixl.cpp defines INITGUID, so it cannot be built in unified mode."
+-#undef INITGUID
+-#endif
+-#include "jit/shared/AtomicOperations-shared-jit.cpp"
+-#ifdef PL_ARENA_CONST_ALIGN_MASK
+-#error "jit/shared/AtomicOperations-shared-jit.cpp uses PL_ARENA_CONST_ALIGN_MASK, so it cannot be built in unified mode."
+-#undef PL_ARENA_CONST_ALIGN_MASK
+-#endif
+-#ifdef INITGUID
+-#error "jit/shared/AtomicOperations-shared-jit.cpp defines INITGUID, so it cannot be built in unified mode."
+-#undef INITGUID
+-#endif
+-#include "jit/shared/CodeGenerator-shared.cpp"
+-#ifdef PL_ARENA_CONST_ALIGN_MASK
+-#error "jit/shared/CodeGenerator-shared.cpp uses PL_ARENA_CONST_ALIGN_MASK, so it cannot be built in unified mode."
+-#undef PL_ARENA_CONST_ALIGN_MASK
+-#endif
+-#ifdef INITGUID
+-#error "jit/shared/CodeGenerator-shared.cpp defines INITGUID, so it cannot be built in unified mode."
+-#undef INITGUID
+-#endif
+-#include "jit/shared/Disassembler-shared.cpp"
+-#ifdef PL_ARENA_CONST_ALIGN_MASK
+-#error "jit/shared/Disassembler-shared.cpp uses PL_ARENA_CONST_ALIGN_MASK, so it cannot be built in unified mode."
+-#undef PL_ARENA_CONST_ALIGN_MASK
+-#endif
+-#ifdef INITGUID
+-#error "jit/shared/Disassembler-shared.cpp defines INITGUID, so it cannot be built in unified mode."
+-#undef INITGUID
+-#endif
+-#include "jit/shared/Lowering-shared.cpp"
+-#ifdef PL_ARENA_CONST_ALIGN_MASK
+-#error "jit/shared/Lowering-shared.cpp uses PL_ARENA_CONST_ALIGN_MASK, so it cannot be built in unified mode."
+-#undef PL_ARENA_CONST_ALIGN_MASK
+-#endif
+-#ifdef INITGUID
+-#error "jit/shared/Lowering-shared.cpp defines INITGUID, so it cannot be built in unified mode."
+-#undef INITGUID
+-#endif
+\ 文件末尾没有换行符
+diff -urN mozjs.org/platform/loongarch64/linux/build/js-confdefs.h mozjs/platform/loongarch64/linux/build/js-confdefs.h
+--- mozjs.org/platform/loongarch64/linux/build/js-confdefs.h	2025-12-17 15:30:33.556631611 +0800
++++ mozjs/platform/loongarch64/linux/build/js-confdefs.h	2025-12-18 10:02:53.723626550 +0800
+@@ -9,7 +9,6 @@
+ // Expands to all the defines from configure.
+ #define CROSS_COMPILE 
+ #define ENABLE_SHARED_MEMORY 1
+-#define ENABLE_WASM_SIMD 1
+ #define HAVE_64BIT_BUILD 1
+ #define HAVE_ALLOCA_H 1
+ #define HAVE_BYTESWAP_H 1
+@@ -32,7 +31,6 @@
+ #define HAVE_MALLOC_H 1
+ #define HAVE_MALLOC_USABLE_SIZE 1
+ #define HAVE_MEMALIGN 1
+-#define HAVE_MEMFD_CREATE 1
+ #define HAVE_NETINET_IN_H 1
+ #define HAVE_NL_TYPES_H 1
+ #define HAVE_POSIX_FADVISE 1
+@@ -59,7 +57,7 @@
+ #define HAVE_VISIBILITY_HIDDEN_ATTRIBUTE 1
+ #define HAVE___CXA_DEMANGLE 1
+ #define JS_64BIT 1
+-#define JS_CODEGEN_ARM64 1
++#define JS_CODEGEN_NONE 1
+ #define JS_DEFAULT_JITREPORT_GRANULARITY 3
+ #define JS_PUNBOX64 1
+ #define JS_STANDALONE 1
+@@ -84,6 +82,7 @@
+ #define VA_COPY va_copy
+ #define XP_LINUX 1
+ #define XP_UNIX 1
++#define X_DISPLAY_MISSING 1
+ #define _REENTRANT 1
+ 
+ #endif /* js_confdefs_h */
+diff -urN mozjs.org/platform/loongarch64/linux/include/jit/LOpcodesGenerated.h mozjs/platform/loongarch64/linux/include/jit/LOpcodesGenerated.h
+--- mozjs.org/platform/loongarch64/linux/include/jit/LOpcodesGenerated.h	2025-12-17 15:30:33.556631611 +0800
++++ mozjs/platform/loongarch64/linux/include/jit/LOpcodesGenerated.h	2025-12-18 10:02:53.723626550 +0800
+@@ -544,25 +544,8 @@
+ _(WasmReduceSimd128ToInt64)\
+ _(WasmLoadLaneSimd128)\
+ _(WasmStoreLaneSimd128)\
+-_(Unbox)\
+ _(UnboxFloatingPoint)\
+-_(WasmUint32ToDouble)\
+-_(WasmUint32ToFloat32)\
+-_(DivI)\
+-_(DivPowTwoI)\
+-_(DivConstantI)\
+-_(UDivConstantI)\
+-_(ModI)\
+-_(ModPowTwoI)\
+-_(ModMaskI)\
+ _(TableSwitch)\
+-_(TableSwitchV)\
+-_(MulI)\
+-_(UDiv)\
+-_(UMod)\
+-_(Int64ToFloatingPoint)\
+-_(WasmTruncateToInt64)\
+-_(DivOrModI64)\
+-_(UDivOrModI64)
++_(TableSwitchV)
+ 
+ #endif // jit_LOpcodesGenerated_h
+diff -urN mozjs.org/platform/loongarch64/linux/include/js-confdefs.h mozjs/platform/loongarch64/linux/include/js-confdefs.h
+--- mozjs.org/platform/loongarch64/linux/include/js-confdefs.h	2025-12-17 15:30:33.556631611 +0800
++++ mozjs/platform/loongarch64/linux/include/js-confdefs.h	2025-12-18 10:02:53.719626662 +0800
+@@ -9,7 +9,6 @@
+ // Expands to all the defines from configure.
+ #define CROSS_COMPILE 
+ #define ENABLE_SHARED_MEMORY 1
+-#define ENABLE_WASM_SIMD 1
+ #define HAVE_64BIT_BUILD 1
+ #define HAVE_ALLOCA_H 1
+ #define HAVE_BYTESWAP_H 1
+@@ -32,7 +31,6 @@
+ #define HAVE_MALLOC_H 1
+ #define HAVE_MALLOC_USABLE_SIZE 1
+ #define HAVE_MEMALIGN 1
+-#define HAVE_MEMFD_CREATE 1
+ #define HAVE_NETINET_IN_H 1
+ #define HAVE_NL_TYPES_H 1
+ #define HAVE_POSIX_FADVISE 1
+@@ -59,7 +57,7 @@
+ #define HAVE_VISIBILITY_HIDDEN_ATTRIBUTE 1
+ #define HAVE___CXA_DEMANGLE 1
+ #define JS_64BIT 1
+-#define JS_CODEGEN_ARM64 1
++#define JS_CODEGEN_NONE 1
+ #define JS_DEFAULT_JITREPORT_GRANULARITY 3
+ #define JS_PUNBOX64 1
+ #define JS_STANDALONE 1
+@@ -84,6 +82,7 @@
+ #define VA_COPY va_copy
+ #define XP_LINUX 1
+ #define XP_UNIX 1
++#define X_DISPLAY_MISSING 1
+ #define _REENTRANT 1
+ 
+ #endif /* js_confdefs_h */
+diff -urN mozjs.org/platform/loongarch64/linux/include/js-config.h mozjs/platform/loongarch64/linux/include/js-config.h
+--- mozjs.org/platform/loongarch64/linux/include/js-config.h	2025-12-17 15:30:33.556631611 +0800
++++ mozjs/platform/loongarch64/linux/include/js-config.h	2025-12-18 10:02:53.723626550 +0800
+@@ -68,7 +68,7 @@
+ /* #undef ENABLE_WASM_EXCEPTIONS */
+ /* #undef ENABLE_WASM_FUNCTION_REFERENCES */
+ /* #undef ENABLE_WASM_GC */
+-#define ENABLE_WASM_SIMD 1
++/* #undef ENABLE_WASM_SIMD */
+ 
+ /* MOZILLA JSAPI version number components */
+ #define MOZJS_MAJOR_VERSION 91
